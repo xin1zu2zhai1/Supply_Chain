@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>とりあえず物流、最適化していいですか？</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* Touch action fix for mobile gaming */
+        body {
+            overscroll-behavior: none;
+            touch-action: none;
+        }
+        .animate-spin-slow {
+            animation: spin 3s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 overflow-hidden">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        // --- Icons (SVG Components) ---
+        // Lucide ReactのアイコンをSVGとして直接定義
+        
+        const IconBase = ({ children, size = 24, className = "", ...props }) => (
+            <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width={size} 
+                height={size} 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                className={className} 
+                {...props}
+            >
+                {children}
+            </svg>
+        );
+
+        const Truck = (props) => (
+            <IconBase {...props}>
+                <path d="M5 18H3c-.6 0-1-.4-1-1V7c0-.6.4-1 1-1h10c.6 0 1 .4 1 1v11" />
+                <path d="M14 9h4l4 4v4c0 .6-.4 1-1 1h-2" />
+                <circle cx="7" cy="18" r="2" />
+                <path d="M15 18H9" />
+                <circle cx="17" cy="18" r="2" />
+            </IconBase>
+        );
+
+        const MapIcon = (props) => (
+            <IconBase {...props}>
+                <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+                <line x1="9" x2="9" y1="3" y2="18" />
+                <line x1="15" x2="15" y1="6" y2="21" />
+            </IconBase>
+        );
+
+        const BarChart3 = (props) => (
+            <IconBase {...props}>
+                <path d="M3 3v18h18" />
+                <path d="M18 17V9" />
+                <path d="M13 17V5" />
+                <path d="M8 17v-3" />
+            </IconBase>
+        );
+
+        const Eye = (props) => (
+            <IconBase {...props}>
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                <circle cx="12" cy="12" r="3" />
+            </IconBase>
+        );
+
+        const EyeOff = (props) => (
+            <IconBase {...props}>
+                <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+                <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+                <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7c.44 0 .87-.03 1.28-.09" />
+                <line x1="2" x2="22" y1="2" y2="22" />
+            </IconBase>
+        );
+
+        const Settings2 = (props) => (
+            <IconBase {...props}>
+                <path d="M17 19H3" />
+                <path d="M3 5h18" />
+                <path d="M10 5v4a2 2 0 1 0 4 0V5" />
+                <path d="M8 19v-4a2 2 0 1 1 4 0v4" />
+                <path d="M21 19H16" />
+                <path d="M3 12h18" />
+                <path d="M16 12v4a2 2 0 1 1-4 0v-4" />
+            </IconBase>
+        );
+
+        const RefreshCw = (props) => (
+            <IconBase {...props}>
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                <path d="M21 3v5h-5" />
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                <path d="M8 16H3v5" />
+            </IconBase>
+        );
+
+        const CheckCircle2 = (props) => (
+            <IconBase {...props}>
+                <circle cx="12" cy="12" r="10" />
+                <path d="m9 12 2 2 4-4" />
+            </IconBase>
+        );
+
+        const ArrowRight = (props) => (
+            <IconBase {...props}>
+                <path d="M5 12h14" />
+                <path d="m12 5 7 7-7 7" />
+            </IconBase>
+        );
+
+        const PlayCircle = (props) => (
+            <IconBase {...props}>
+                <circle cx="12" cy="12" r="10" />
+                <polygon points="10 8 16 12 10 16 10 8" />
+            </IconBase>
+        );
+
+        const Star = (props) => (
+            <IconBase {...props}>
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </IconBase>
+        );
+
+        const ExternalLink = (props) => (
+            <IconBase {...props}>
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" x2="21" y1="14" y2="3" />
+            </IconBase>
+        );
+
+
+        // --- Constants & Data ---
+
+        const CARGO_TYPES = [
+            { hex: '#ef4444', glow: '#fca5a5', label: 'HAZMAT', name: '危険物' }, // Red
+            { hex: '#3b82f6', glow: '#93c5fd', label: 'COLD', name: '冷凍便' },   // Blue
+            { hex: '#22c55e', glow: '#86efac', label: 'ECO', name: '一般貨物' },    // Green
+            { hex: '#eab308', glow: '#fde047', label: 'FRAGILE', name: '割れ物' }, // Yellow
+            { hex: '#a855f7', glow: '#d8b4fe', label: 'EXPRESS', name: '特急便' }, // Purple
+            { hex: '#ec4899', glow: '#f9a8d4', label: 'FASHION', name: '衣料品' }, // Pink
+            { hex: '#06b6d4', glow: '#67e8f9', label: 'MEDICAL', name: '医薬品' }, // Cyan
+            { hex: '#f97316', glow: '#fdba74', label: 'PARTS', name: '精密部品' },  // Orange
+            { hex: '#6366f1', glow: '#a5b4fc', label: 'MAIL', name: '郵便' },      // Indigo
+            { hex: '#14b8a6', glow: '#5eead4', label: 'FRESH', name: '生鮮食品' }, // Teal
+        ];
+
+        const DIRECTIONS = [
+            { x: 0, y: -1 }, // Up
+            { x: 1, y: 0 },  // Right
+            { x: 0, y: 1 },  // Down
+            { x: -1, y: 0 }, // Left
+        ];
+
+        // --- Logic ---
+
+        const generateLevel = (levelId, size) => {
+            const maxGlobalRetries = 200; 
+            const minPathLength = 3; 
+
+            for (let attempt = 0; attempt < maxGlobalRetries; attempt++) {
+                const grid = new Int32Array(size * size).fill(-1);
+                const paths = [];
+                
+                const getIdx = (x, y) => y * size + x;
+                const isValid = (x, y) => x >= 0 && x < size && y >= 0 && y < size;
+                const isEmpty = (x, y) => isValid(x, y) && grid[getIdx(x, y)] === -1;
+
+                let filledCount = 0;
+                let colorIdx = 0;
+                let generationFailed = false;
+
+                while (filledCount < size * size) {
+                    let startX = -1, startY = -1;
+                    for (let i = 0; i < size * size; i++) {
+                        if (grid[i] === -1) {
+                            startX = i % size;
+                            startY = Math.floor(i / size);
+                            break;
+                        }
+                    }
+
+                    if (startX === -1) break;
+
+                    const currentPath = [{ x: startX, y: startY }];
+                    grid[getIdx(startX, startY)] = colorIdx;
+                    filledCount++;
+
+                    let cx = startX;
+                    let cy = startY;
+                    let stuck = false;
+
+                    while (!stuck) {
+                        const validMoves = DIRECTIONS
+                            .map(d => ({ x: cx + d.x, y: cy + d.y }))
+                            .filter(p => isEmpty(p.x, p.y));
+
+                        if (validMoves.length === 0) {
+                            stuck = true;
+                        } else {
+                            const move = validMoves[Math.floor(Math.random() * validMoves.length)];
+                            grid[getIdx(move.x, move.y)] = colorIdx;
+                            currentPath.push(move);
+                            cx = move.x;
+                            cy = move.y;
+                            filledCount++;
+                        }
+                    }
+
+                    if (currentPath.length < minPathLength) {
+                        generationFailed = true;
+                        break; 
+                    }
+
+                    paths.push(currentPath);
+                    colorIdx++;
+                }
+
+                if (generationFailed) continue;
+
+                const pairs = paths.map((p, idx) => {
+                    const start = p[0];
+                    const end = p[p.length - 1];
+                    return [idx, start.x, start.y, end.x, end.y];
+                });
+
+                const solution = {};
+                paths.forEach((p, idx) => {
+                    solution[idx] = p;
+                });
+
+                return {
+                    id: levelId,
+                    size: size,
+                    pairs: pairs,
+                    solution: solution
+                };
+            }
+
+            // Fallback
+            return {
+                id: levelId,
+                size: 5,
+                pairs: [[0,0,0,4,4]],
+                solution: { 0: [{x:0,y:0}, {x:1,y:0}, {x:2,y:0}, {x:3,y:0}, {x:4,y:0}, {x:4,y:1}, {x:4,y:2}, {x:4,y:3}, {x:4,y:4}] }
+            };
+        };
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 3 + 1;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.life = 1.0;
+                this.color = color;
+                this.size = Math.random() * 4 + 2;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= 0.03;
+                this.size *= 0.95;
+                this.vx *= 0.9;
+                this.vy *= 0.9;
+            }
+
+            draw(ctx) {
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.fillStyle = this.color;
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.life * 10);
+                ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size * 1.5);
+                ctx.restore();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        // --- Main App Component ---
+
+        function LogisticsOptimizer() {
+            const canvasRef = useRef(null);
+            const containerRef = useRef(null);
+            
+            // Game State
+            const [gameStarted, setGameStarted] = useState(false);
+            const [levelNum, setLevelNum] = useState(1);
+            const [levelData, setLevelData] = useState(null);
+            const [paths, setPaths] = useState({});
+            const [isLevelComplete, setIsLevelComplete] = useState(false);
+            
+            // Use useRef for particles to avoid re-renders during animation loop
+            const particlesRef = useRef([]);
+            
+            const [isGenerating, setIsGenerating] = useState(true);
+            const [coverage, setCoverage] = useState(0);
+            const [showSolution, setShowSolution] = useState(false);
+            
+            // Layout State
+            const [layout, setLayout] = useState({ width: 0, height: 0, offsetX: 0, offsetY: 0, cellSize: 0 });
+
+            // Internal mutable state
+            const gameState = useRef({
+                isDragging: false,
+                dragColor: -1,
+            });
+
+            // --- Level Initialization ---
+
+            const getGridSize = (lvl) => {
+                if (lvl <= 2) return 5;
+                if (lvl <= 5) return 6;
+                if (lvl <= 10) return 7;
+                return 8; 
+            };
+
+            const initLevel = useCallback((lvl) => {
+                setIsGenerating(true);
+                setShowSolution(false);
+                setTimeout(() => {
+                    const size = getGridSize(lvl);
+                    const newLevel = generateLevel(lvl, size);
+                    setLevelData(newLevel);
+                    setPaths({});
+                    setIsLevelComplete(false);
+                    setCoverage(0);
+                    particlesRef.current = []; // Clear particles
+                    setIsGenerating(false);
+                }, 100);
+            }, []);
+
+            useEffect(() => {
+                initLevel(levelNum);
+            }, []);
+
+            // --- Resize Handler ---
+            
+            useEffect(() => {
+                if (!levelData) return;
+
+                const handleResize = () => {
+                    if (!containerRef.current || !canvasRef.current) return;
+
+                    const container = containerRef.current;
+                    const canvas = canvasRef.current;
+                    const dpr = window.devicePixelRatio || 1;
+
+                    const rect = container.getBoundingClientRect();
+                    const width = rect.width;
+                    const height = rect.height;
+
+                    canvas.width = width * dpr;
+                    canvas.height = height * dpr;
+                    canvas.style.width = `${width}px`;
+                    canvas.style.height = `${height}px`;
+
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) ctx.scale(dpr, dpr);
+
+                    const size = levelData.size;
+                    const padding = 20;
+                    const availableSize = Math.min(width, height) - padding * 2;
+                    const cellSize = Math.floor(availableSize / size);
+                    const offsetX = (width - cellSize * size) / 2;
+                    const offsetY = (height - cellSize * size) / 2;
+
+                    // Fix: Guard against unnecessary state updates to prevent loop
+                    setLayout(prev => {
+                        if (prev.width === width && 
+                            prev.height === height && 
+                            prev.offsetX === offsetX && 
+                            prev.offsetY === offsetY && 
+                            prev.cellSize === cellSize) {
+                        return prev;
+                        }
+                        return { width, height, offsetX, offsetY, cellSize };
+                    });
+                };
+
+                handleResize();
+                const resizeObserver = new ResizeObserver(() => handleResize());
+                if (containerRef.current) {
+                    resizeObserver.observe(containerRef.current);
+                }
+
+                return () => resizeObserver.disconnect();
+            }, [levelData, gameStarted]);
+
+
+            // --- Logic Helpers ---
+
+            const getGridPos = useCallback((clientX, clientY) => {
+                if (!canvasRef.current || !levelData) return null;
+                const rect = canvasRef.current.getBoundingClientRect();
+                
+                const x = clientX - rect.left - layout.offsetX;
+                const y = clientY - rect.top - layout.offsetY;
+                
+                const col = Math.floor(x / layout.cellSize);
+                const row = Math.floor(y / layout.cellSize);
+
+                if (col >= 0 && col < levelData.size && row >= 0 && row < levelData.size) {
+                    return { x: col, y: row };
+                }
+                return null;
+            }, [layout, levelData]);
+
+            const isEndpoint = useCallback((x, y, colorId) => {
+                if (!levelData) return false;
+                const pair = levelData.pairs[colorId];
+                return (pair[1] === x && pair[2] === y) || (pair[3] === x && pair[4] === y);
+            }, [levelData]);
+
+            const isAnyEndpoint = useCallback((x, y) => {
+                if (!levelData) return -1;
+                return levelData.pairs.findIndex(p => (p[1] === x && p[2] === y) || (p[3] === x && p[4] === y));
+            }, [levelData]);
+
+            // Update Coverage
+            useEffect(() => {
+                if (!levelData) return;
+                const totalCells = levelData.size * levelData.size;
+                const gridCheck = new Set();
+                
+                Object.entries(paths).forEach(([_, path]) => {
+                    path.forEach(p => gridCheck.add(`${p.x},${p.y}`));
+                });
+
+                levelData.pairs.forEach(pair => {
+                    gridCheck.add(`${pair[1]},${pair[2]}`);
+                    gridCheck.add(`${pair[3]},${pair[4]}`);
+                });
+
+                const currentFilled = gridCheck.size;
+                const percent = Math.min(100, Math.floor((currentFilled / totalCells) * 100));
+                setCoverage(percent);
+
+            }, [paths, levelData]);
+
+            const checkWinCondition = (currentPaths) => {
+                if (!levelData) return false;
+
+                // 1. All colors connected
+                if (Object.keys(currentPaths).length !== levelData.pairs.length) return false;
+
+                let allConnected = true;
+                for (let i = 0; i < levelData.pairs.length; i++) {
+                    const path = currentPaths[i];
+                    if (!path || path.length < 2) {
+                        allConnected = false;
+                        break;
+                    }
+                    const start = path[0];
+                    const end = path[path.length - 1];
+                    const pair = levelData.pairs[i];
+                    
+                    const match1 = (start.x === pair[1] && start.y === pair[2] && end.x === pair[3] && end.y === pair[4]);
+                    const match2 = (start.x === pair[3] && start.y === pair[4] && end.x === pair[1] && end.y === pair[2]);
+                    
+                    if (!match1 && !match2) {
+                        allConnected = false;
+                        break;
+                    }
+                }
+                if (!allConnected) return false;
+
+                // 2. Full Coverage
+                const totalCells = levelData.size * levelData.size;
+                const gridCheck = new Set();
+                Object.values(currentPaths).forEach(path => {
+                    path.forEach(p => gridCheck.add(`${p.x},${p.y}`));
+                });
+                levelData.pairs.forEach(pair => {
+                    gridCheck.add(`${pair[1]},${pair[2]}`);
+                    gridCheck.add(`${pair[3]},${pair[4]}`);
+                });
+                
+                if (gridCheck.size < totalCells) return false;
+
+                return true;
+            };
+
+            const spawnParticles = (gridX, gridY, color) => {
+                const newParticles = [];
+                const pixelX = layout.offsetX + gridX * layout.cellSize + layout.cellSize / 2;
+                const pixelY = layout.offsetY + gridY * layout.cellSize + layout.cellSize / 2;
+                
+                for (let i = 0; i < 15; i++) {
+                    newParticles.push(new Particle(pixelX, pixelY, color));
+                }
+                return newParticles;
+            };
+
+            // --- Interaction Handlers ---
+
+            const handlePointerDown = (e) => {
+                if (!gameStarted || isLevelComplete || !levelData || showSolution) return;
+                e.preventDefault();
+                
+                // Get correct client coordinates for both Mouse and Touch events
+                let clientX = e.clientX;
+                let clientY = e.clientY;
+                
+                // Although Pointer Events usually handle both, sometimes explicit fallback is safer
+                if (!clientX && e.touches && e.touches.length > 0) {
+                    clientX = e.touches[0].clientX;
+                    clientY = e.touches[0].clientY;
+                }
+
+                const pos = getGridPos(clientX, clientY);
+                if (!pos) return;
+
+                const endpointIndex = levelData.pairs.findIndex(p => 
+                    (p[1] === pos.x && p[2] === pos.y) || (p[3] === pos.x && p[4] === pos.y)
+                );
+
+                let pathIndex = -1;
+                if (endpointIndex === -1) {
+                    Object.entries(paths).forEach(([cId, path]) => {
+                        if (path.some(p => p.x === pos.x && p.y === pos.y)) {
+                            pathIndex = parseInt(cId);
+                        }
+                    });
+                }
+
+                const colorId = endpointIndex !== -1 ? endpointIndex : pathIndex;
+
+                if (colorId !== -1) {
+                    gameState.current.isDragging = true;
+                    gameState.current.dragColor = colorId;
+                    
+                    if (endpointIndex !== -1) {
+                        setPaths(prev => ({ ...prev, [colorId]: [{ x: pos.x, y: pos.y }] }));
+                    } else {
+                        setPaths(prev => {
+                            const oldPath = prev[colorId] || [];
+                            const clickIndex = oldPath.findIndex(p => p.x === pos.x && p.y === pos.y);
+                            if (clickIndex !== -1) {
+                                return { ...prev, [colorId]: oldPath.slice(0, clickIndex + 1) };
+                            }
+                            return prev;
+                        });
+                    }
+                }
+            };
+
+            const handlePointerMove = (e) => {
+                if (!gameStarted || !gameState.current.isDragging || isLevelComplete || !levelData || showSolution) return;
+                e.preventDefault();
+
+                let clientX = e.clientX;
+                let clientY = e.clientY;
+                if (!clientX && e.touches && e.touches.length > 0) {
+                    clientX = e.touches[0].clientX;
+                    clientY = e.touches[0].clientY;
+                }
+
+                const pos = getGridPos(clientX, clientY);
+                if (!pos) return;
+
+                const colorId = gameState.current.dragColor;
+                
+                setPaths(prev => {
+                    const currentPath = prev[colorId] || [];
+                    const lastPoint = currentPath[currentPath.length - 1];
+                    
+                    if (!lastPoint) return prev; 
+                    if (lastPoint.x === pos.x && lastPoint.y === pos.y) return prev; 
+                    if (Math.abs(pos.x - lastPoint.x) + Math.abs(pos.y - lastPoint.y) !== 1) return prev;
+
+                    if (currentPath.some(p => p.x === pos.x && p.y === pos.y)) {
+                        if (currentPath.length > 1) {
+                            const prevPoint = currentPath[currentPath.length - 2];
+                            if (prevPoint.x === pos.x && prevPoint.y === pos.y) {
+                                return { ...prev, [colorId]: currentPath.slice(0, currentPath.length - 1) };
+                            }
+                        }
+                        return prev; 
+                    }
+
+                    const hitEndpoint = isAnyEndpoint(pos.x, pos.y);
+                    if (hitEndpoint !== -1 && hitEndpoint !== colorId) return prev; 
+                    let collision = false;
+                    Object.entries(prev).forEach(([cId, path]) => {
+                        if (parseInt(cId) !== colorId) {
+                            if (path.some(p => p.x === pos.x && p.y === pos.y)) {
+                                collision = true;
+                            }
+                        }
+                    });
+                    if (collision) return prev; 
+
+                    const newPaths = { ...prev, [colorId]: [...currentPath, pos] };
+                    if (isEndpoint(pos.x, pos.y, colorId)) {
+                        const colorHex = CARGO_TYPES[colorId % CARGO_TYPES.length].hex;
+                        const newP = spawnParticles(pos.x, pos.y, colorHex);
+                        particlesRef.current.push(...newP); 
+                    }
+                    return newPaths;
+                });
+            };
+
+            const handlePointerUp = (e) => {
+                e.preventDefault();
+                if (gameState.current.isDragging) {
+                    if (checkWinCondition(paths)) {
+                        setIsLevelComplete(true);
+                        if (levelData) {
+                            const center = levelData.size / 2;
+                            const newP = spawnParticles(center - 0.5, center - 0.5, '#ffffff');
+                            particlesRef.current.push(...newP);
+                        }
+                    }
+                }
+                gameState.current.isDragging = false;
+                gameState.current.dragColor = -1;
+            };
+
+
+            // --- Render Loop ---
+
+            const draw = useCallback((ctx) => {
+                if (!layout.width || !levelData) return;
+                
+                const { cellSize, offsetX, offsetY } = layout;
+                const size = levelData.size;
+
+                // 1. Background
+                ctx.fillStyle = '#1e293b'; 
+                ctx.fillRect(0, 0, layout.width, layout.height);
+
+                // Grid (High contrast)
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([2, 4]);
+                ctx.beginPath();
+                for (let i = 0; i <= size; i++) {
+                    ctx.moveTo(offsetX + i * cellSize, offsetY);
+                    ctx.lineTo(offsetX + i * cellSize, offsetY + size * cellSize);
+                    ctx.moveTo(offsetX, offsetY + i * cellSize);
+                    ctx.lineTo(offsetX + size * cellSize, offsetY + i * cellSize);
+                }
+                ctx.stroke();
+                ctx.setLineDash([]); 
+
+                // 2. Paths
+                const activePaths = showSolution ? levelData.solution : paths;
+
+                Object.entries(activePaths).forEach(([cId, path]) => {
+                    const colorIndex = parseInt(cId);
+                    const style = CARGO_TYPES[colorIndex % CARGO_TYPES.length];
+                    
+                    if (path.length < 1) return;
+
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = style.glow;
+                    
+                    ctx.lineWidth = cellSize * 0.4;
+                    ctx.strokeStyle = style.hex;
+                    if (showSolution) ctx.globalAlpha = 0.6; 
+
+                    ctx.beginPath();
+                    ctx.moveTo(
+                        offsetX + path[0].x * cellSize + cellSize / 2,
+                        offsetY + path[0].y * cellSize + cellSize / 2
+                    );
+                    for (let i = 1; i < path.length; i++) {
+                        ctx.lineTo(
+                            offsetX + path[i].x * cellSize + cellSize / 2,
+                            offsetY + path[i].y * cellSize + cellSize / 2
+                        );
+                    }
+                    ctx.stroke();
+                    
+                    ctx.shadowBlur = 0;
+                    ctx.globalAlpha = 1.0;
+
+                    ctx.lineWidth = cellSize * 0.05;
+                    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+                    ctx.setLineDash([cellSize * 0.2, cellSize * 0.2]);
+                    ctx.stroke(); 
+                    ctx.setLineDash([]);
+                });
+
+                // 3. Endpoints
+                levelData.pairs.forEach((pair, index) => {
+                    const style = CARGO_TYPES[index % CARGO_TYPES.length];
+                    const start = { x: pair[1], y: pair[2] };
+                    const end = { x: pair[3], y: pair[4] };
+                    
+                    const isComplete = showSolution ? true : isPathComplete(index, paths);
+
+                    drawLocation(ctx, start.x, start.y, style.hex, '🏭', isComplete, cellSize, offsetX, offsetY);
+                    drawLocation(ctx, end.x, end.y, style.hex, '🏪', isComplete, cellSize, offsetX, offsetY);
+                });
+
+                // 4. Particles (Direct ref update)
+                const nextParticles = [];
+                particlesRef.current.forEach(p => {
+                    p.update();
+                    if (p.life > 0) {
+                        p.draw(ctx);
+                        nextParticles.push(p);
+                    }
+                });
+                particlesRef.current = nextParticles;
+
+            }, [levelData, paths, layout, showSolution]); 
+
+            const drawLocation = (
+                ctx, 
+                x, y, 
+                color, 
+                emoji, 
+                isComplete,
+                cellSize, offsetX, offsetY
+            ) => {
+                const cx = offsetX + x * cellSize + cellSize / 2;
+                const cy = offsetY + y * cellSize + cellSize / 2;
+
+                ctx.shadowBlur = isComplete ? 15 : 0;
+                ctx.shadowColor = color;
+                ctx.fillStyle = '#1e293b'; 
+                
+                const size = cellSize * 0.8;
+                ctx.beginPath();
+                ctx.roundRect(cx - size/2, cy - size/2, size, size, 8);
+                ctx.fill();
+                
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = color;
+                ctx.stroke();
+                
+                ctx.shadowBlur = 0;
+
+                ctx.font = `${cellSize * 0.5}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(emoji, cx, cy);
+
+                if (isComplete) {
+                    ctx.beginPath();
+                    ctx.arc(cx + size/2 - 5, cy - size/2 + 5, 8, 0, Math.PI * 2);
+                    ctx.fillStyle = '#22c55e';
+                    ctx.fill();
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+            };
+
+            const isPathComplete = (colorId, currentPaths) => {
+                if (!levelData) return false;
+                const path = currentPaths[colorId];
+                if (!path || path.length < 2) return false;
+                const start = path[0];
+                const end = path[path.length - 1];
+                const pair = levelData.pairs[colorId];
+                
+                const match1 = (start.x === pair[1] && start.y === pair[2] && end.x === pair[3] && end.y === pair[4]);
+                const match2 = (start.x === pair[3] && start.y === pair[4] && end.x === pair[1] && end.y === pair[2]);
+                return match1 || match2;
+            }
+
+            useEffect(() => {
+                let frameId;
+                const render = () => {
+                    if (canvasRef.current) {
+                        const ctx = canvasRef.current.getContext('2d');
+                        if (ctx) draw(ctx);
+                    }
+                    frameId = requestAnimationFrame(render);
+                };
+                render();
+                return () => cancelAnimationFrame(frameId);
+            }, [draw]);
+
+
+            const nextLevel = () => {
+                setLevelNum(prev => {
+                    const next = prev + 1;
+                    initLevel(next);
+                    return next;
+                });
+            };
+
+            const resetCurrentLevel = () => {
+                setPaths({});
+                setIsLevelComplete(false);
+                particlesRef.current = []; 
+                setShowSolution(false);
+            };
+
+            const regenerateSameLevel = () => {
+                initLevel(levelNum);
+            }
+
+            const toggleSolution = () => {
+                setShowSolution(prev => !prev);
+            }
+
+            return (
+                <div className="flex flex-col h-screen bg-slate-900 text-slate-100 font-sans overflow-hidden touch-none select-none">
+                
+                {/* Header */}
+                <div className="flex-none p-4 border-b border-slate-700 bg-slate-800 shadow-md z-10">
+                    <div className="flex justify-between items-center max-w-4xl mx-auto w-full">
+                        <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            <Truck className="text-blue-400" size={24} />
+                            <h1 className="text-lg md:text-xl font-bold tracking-tight text-white">
+                            <span className="md:hidden">とりあえず物流...</span>
+                            <span className="hidden md:inline">とりあえず物流、最適化していいですか？</span>
+                            </h1>
+                        </div>
+                        
+                        <div className="flex flex-wrap items-center gap-4 text-xs md:text-sm font-mono text-slate-400">
+                            <div className="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded">
+                                <MapIcon size={14} />
+                                <span>DISTRICT {levelNum}</span>
+                            </div>
+                            
+                            {isGenerating ? (
+                                <span className="text-yellow-400 animate-pulse">CALCULATING ROUTES...</span>
+                            ) : (
+                                <>
+                                    <div className="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded">
+                                        <BarChart3 size={14} className={coverage === 100 ? 'text-green-400' : ''} />
+                                        <span className={coverage === 100 ? 'text-green-400 font-bold' : ''}>
+                                            EFFICIENCY: {coverage}%
+                                        </span>
+                                    </div>
+                                    {showSolution && <span className="text-red-400 font-bold animate-pulse">[ AI OPTIMIZATION VIEW ]</span>}
+                                </>
+                            )}
+                        </div>
+                        </div>
+
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={toggleSolution}
+                                className={`p-3 rounded-lg border transition-all ${showSolution ? 'bg-red-900/30 border-red-500 text-red-300' : 'bg-slate-700 border-slate-600 hover:bg-slate-600 text-yellow-400'}`}
+                                title={showSolution ? "Hide AI Route" : "Show AI Optimization"}
+                                disabled={isGenerating || isLevelComplete || !gameStarted}
+                            >
+                                {showSolution ? <EyeOff size={20} /> : <Eye size={20} />}
+                            </button>
+                            <button 
+                                onClick={regenerateSameLevel}
+                                className="p-3 bg-slate-700 rounded-lg hover:bg-slate-600 transition active:scale-95 border border-slate-600 text-purple-300"
+                                title="Generate New District"
+                                disabled={!gameStarted}
+                            >
+                                <Settings2 size={20} />
+                            </button>
+                            <button 
+                                onClick={resetCurrentLevel}
+                                className="p-3 bg-slate-700 rounded-lg hover:bg-slate-600 transition active:scale-95 border border-slate-600 text-cyan-300"
+                                title="Reset All Routes"
+                                disabled={!gameStarted}
+                            >
+                                <RefreshCw size={20} />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Legend */}
+                <div className="flex-none bg-slate-900 border-b border-slate-800 overflow-x-auto">
+                    <div className="flex gap-4 p-2 px-4 max-w-4xl mx-auto min-w-max">
+                        {levelData?.pairs.map((pair, idx) => {
+                            const type = CARGO_TYPES[idx % CARGO_TYPES.length];
+                            const isDone = isPathComplete(idx, paths);
+                            return (
+                                <div key={idx} className={`flex items-center gap-1 text-xs px-2 py-1 rounded border ${isDone ? 'bg-slate-800 border-slate-600 opacity-50' : 'bg-slate-800 border-slate-700'}`}>
+                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: type.hex }}></div>
+                                    <span style={{ color: type.glow }}>{type.label}</span>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+
+                {/* Game Area */}
+                <div className="flex-grow flex items-center justify-center p-4 relative overflow-hidden bg-slate-950">
+                    
+                    <div 
+                        ref={containerRef}
+                        className={`relative w-full h-full max-w-2xl max-h-2xl flex items-center justify-center transition-opacity duration-300 ${isGenerating ? 'opacity-0' : 'opacity-100'}`}
+                    >
+                        <canvas
+                            ref={canvasRef}
+                            className={`touch-none rounded-xl shadow-2xl border border-slate-700 ${showSolution ? 'cursor-not-allowed opacity-75 grayscale-50' : 'cursor-crosshair active:cursor-grabbing'}`}
+                            onPointerDown={handlePointerDown}
+                            onPointerMove={handlePointerMove}
+                            onPointerUp={handlePointerUp}
+                            onPointerLeave={handlePointerUp}
+                            onTouchStart={(e) => e.preventDefault()}
+                            onTouchMove={(e) => e.preventDefault()}
+                        />
+                    </div>
+
+                    {/* --- START SCREEN MODAL --- */}
+                    {!gameStarted && (
+                        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in duration-500">
+                            <div className="bg-slate-800 border border-slate-600 rounded-3xl p-8 max-w-md w-full shadow-2xl text-center transform hover:scale-[1.01] transition-transform">
+                                <div className="mb-6 flex justify-center">
+                                    <div className="w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center border border-blue-500/30">
+                                        <Truck size={40} className="text-blue-400" />
+                                    </div>
+                                </div>
+                                
+                                <h1 className="text-2xl font-bold text-white mb-2">
+                                    とりあえず物流、<br/>最適化していいですか？
+                                </h1>
+                                <p className="text-slate-400 mb-8 text-sm leading-relaxed">
+                                    工場(🏭)から店舗(🏪)まで、トラックのルートを引いてください。<br/>
+                                    ただし、ルートは交差禁止。<br/>
+                                    <strong className="text-green-400">すべての空き地を埋めて</strong>、積載効率100%を目指しましょう。
+                                </p>
+
+                                <button 
+                                    onClick={() => setGameStarted(true)}
+                                    className="w-full flex items-center justify-center gap-3 bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-xl font-bold text-lg transition-all shadow-lg hover:shadow-blue-500/25 active:scale-95 group"
+                                >
+                                    <PlayCircle size={24} className="group-hover:scale-110 transition-transform"/>
+                                    業務を開始する
+                                </button>
+                                
+                                <div className="mt-4 text-xs text-slate-500">
+                                    System ver 2.0.4 | Optimized for Touch & Mouse
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {isGenerating && gameStarted && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80">
+                            <Truck className="animate-bounce text-blue-500 mb-4" size={48} />
+                            <div className="text-blue-400 font-mono animate-pulse">CALCULATING OPTIMAL LOGISTICS...</div>
+                        </div>
+                    )}
+
+                    {isLevelComplete && !isGenerating && (
+                    <div className="absolute inset-0 z-20 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300">
+                        <div className="bg-slate-800/90 p-8 md:p-12 rounded-2xl border border-blue-500/30 shadow-2xl text-center max-w-lg mx-4 overflow-y-auto max-h-[90vh]">
+                            
+                            {levelNum === 10 ? (
+                                // === LEVEL 10 SPECIAL CELEBRATION ===
+                                <>
+                                    <div className="flex justify-center mb-2">
+                                        <Star className="w-16 h-16 text-yellow-400 animate-spin-slow" fill="currentColor" />
+                                    </div>
+                                    <h2 className="text-2xl md:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 mb-4 tracking-tight">
+                                        DISTRICT 10 CLEARED!
+                                    </h2>
+                                    <p className="text-slate-300 mb-6 text-sm leading-relaxed">
+                                        素晴らしい業務遂行能力です。<br/>
+                                        あなたは物流のスペシャリストとして認められました。
+                                    </p>
+                                    
+                                    {/* External Link Area */}
+                                    <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700 mb-6 text-left hover:bg-slate-900/80 transition-colors">
+                                        <p className="text-xs text-slate-500 mb-2 font-bold flex items-center gap-1">
+                                            <Settings2 size={12} /> RECOMMENDED READING
+                                        </p>
+                                        <a 
+                                            href="https://tales.note.com/xinzuzhai/wg68swv33o264?ss=wsloklckhznok7p" 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="text-sm font-medium text-blue-400 hover:text-blue-300 transition flex items-start gap-3 group"
+                                        >
+                                            <span className="flex-1 leading-snug">
+                                                『逆転生した魔王軍の社畜と王国の宰相、東京のブラック企業で上司と部下になる。 ～スマホも自動改札もわかりませんが、とりあえず御社、殲滅（M&A）していいですか？～』
+                                            </span>
+                                            <ExternalLink size={16} className="mt-1 flex-shrink-0 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                                        </a>
+                                    </div>
+
+                                    <button 
+                                        onClick={nextLevel}
+                                        className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white py-4 px-8 rounded-xl font-bold text-lg transition transform hover:scale-105 shadow-lg"
+                                    >
+                                        業務継続 <PlayCircle size={24} />
+                                    </button>
+                                </>
+                            ) : (
+                                // === NORMAL LEVEL CLEAR ===
+                                <>
+                                    <CheckCircle2 className="w-20 h-20 text-green-400 mx-auto mb-6 animate-pulse" />
+                                    <h2 className="text-3xl font-black text-white mb-2 tracking-tight">LOGISTICS OPTIMIZED</h2>
+                                    <div className="flex flex-col gap-1 mb-8 border-t border-b border-slate-700 py-4 mt-2">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-slate-400">Routes Connected:</span>
+                                        <span className="text-white font-bold">{levelData?.pairs.length} / {levelData?.pairs.length}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-slate-400">Space Efficiency:</span>
+                                        <span className="text-green-400 font-bold">100% MAX</span>
+                                    </div>
+                                    </div>
+                                    
+                                    <button 
+                                    onClick={nextLevel}
+                                    className="w-full flex items-center justify-center gap-3 bg-blue-600 hover:bg-blue-500 text-white py-4 px-8 rounded-xl font-bold text-lg transition transform hover:scale-105 shadow-lg shadow-blue-900/50"
+                                    >
+                                    Next District <ArrowRight size={24} />
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                    )}
+                </div>
+
+                <div className="flex-none p-2 text-center text-slate-500 text-xs bg-slate-900">
+                    <p>
+                        {showSolution 
+                            ? <span className="text-red-400 font-bold">[ SYSTEM LOCKED: VIEWING AI SOLUTION ]</span> 
+                            : <span>Connect <span className="text-slate-300">Warehouse 🏭</span> to <span className="text-slate-300">Store 🏪</span>. Maximize efficiency (100%).</span>
+                        }
+                    </p>
+                </div>
+
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<LogisticsOptimizer />);
+    </script>
+</body>
+</html>
